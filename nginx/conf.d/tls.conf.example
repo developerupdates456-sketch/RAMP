@@ -1,0 +1,41 @@
+# HTTPS server block -- copied to tls.conf by scripts/domain-ssl-apply.sh, which
+# only does so once a certificate is on disk. nginx loads conf.d/*.conf, so
+# until that copy exists this file is inert and the node serves plain HTTP.
+#
+# Why TLS is not in proxy.conf: a `listen 443 ssl` block naming a certificate
+# that does not exist is a fatal start-up error ("cannot load certificate"),
+# which stopped edge-nginx from starting at all and left the node unreachable
+# on port 80 too. Keeping it in a separate file means a fresh install works.
+#
+# Rendered by scripts/domain-ssl-apply.sh; edit that, not this file.
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name {{ domain }};
+    resolver 127.0.0.11 ipv6=off valid=10s;
+
+    # Declared per server block: `set` is only legal in a server/location/if
+    # context, never in the http context. See the comment in nginx.conf.
+    set $frontend_upstream http://frontend:80;
+    set $api_upstream http://api:5000;
+
+    set $forwarded_proto https;
+
+    ssl_certificate /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    # The same route table the plain-HTTP server uses, so enabling TLS cannot
+    # change which backend handles a path.
+    include /etc/nginx/conf.d/proxy-locations.inc;
+}
