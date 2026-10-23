@@ -1,0 +1,5 @@
+# Local environment configuration; never commit credentials.
+env.txt
+.env
+.env.*
+!.env.example
